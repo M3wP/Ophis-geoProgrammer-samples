@@ -1,0 +1,74 @@
+;************************************************************************
+;
+;	SamVlirHdr
+;
+;	This file contains the header block definition for the GeoProgrammer
+;	package sample VLIR application.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+	.require	"geosSym.oph"		;get GEOS definitions
+	
+	.outfile	"SamVlir.hdr"		;dengland:  Output header file for
+						;build tool.
+
+;Here is our header. The SamVlir.lnk file will instruct the linker
+;to attach it to our sample application.
+
+	.word	0			;first two bytes are always zero
+	.byte	3			;width in bytes
+	.byte	21			;and height in scanlines of:
+
+;		$03, $15, $00 
+	.byte	               $BF, $FF, $FF, $FF, $80
+	.byte	$00, $01, $80, $00, $01, $80, $00, $01
+	.byte	$80, $00, $01, $FF, $B9, $81, $B3, $18  
+	.byte	$01, $B3, $1B, $BF, $9E, $19, $99, $9E
+	.byte	$19, $99, $8C, $19, $99, $8C, $19, $99
+	.byte	$8C, $3F, $FD, $80, $00, $01, $80, $00
+	.byte	$01, $80, $00, $01, $80, $00, $01, $80
+	.byte	$00, $01, $80, $00, $01, $80, $00, $01
+	.byte	$FF, $FF, $FF
+
+
+	.byte	$80 | USR		;Commodore file type, with bit 7 set.
+	.byte	APPLICATION		;Geos file type
+	.byte	VLIR			;Geos file structure type
+					;dengland Need to specify this
+	.word	$0400			;start address of program (where to load to)
+	.word	$3ff			;usually end address, but only needed for
+					;desk accessories.
+					;dengland Need to specify this
+	.word	$0400			;init address of program (where to JMP to)
+
+	.byte	"SampleVlir  V1.0",0,0,0,$00
+					;permanent filename: 12 characters,
+					;followed by 4 character version number,
+					;followed by 3 zeroes,
+					;followed by 40/80 column flag.
+
+	.byte	"Eric E. Del Sesto  ",0
+					;twenty character author name
+
+						;dengland  I didn't like space and 
+						;	.advance won't work
+						;dengland  Lets make this proper :P
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00	; parent 20 bytes
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00
+	.byte	$00, $00, $00, $00
+	
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00	; app data 23 bytes
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00
+	.byte	$00, $00, $00, $00, $00, $00, $00
+
+						;dengland  The description is 96 bytes
+	.byte	"This is the GeoProgrammer sample"	; 32
+	.byte	" VLIR GEOS application.",0		; 56		
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 64
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 72
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 80
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 88
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 96

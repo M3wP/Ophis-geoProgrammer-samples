@@ -1,0 +1,514 @@
+;************************************************************************
+;
+;	SamVlirRes
+;
+;	This is the main file for the GeoProgrammer package sample
+;	VLIR application. It contains all of the code and data required
+;	for assembling the resident portion of the program.
+;	See the GeoProgrammer User's Guide for a roadmap to this program.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+	.require	"geosSym.oph"		;get GEOS definitions
+	.require	"geosMac.oph"		;get GEOS macro definitions
+
+	.outfile	"SamVlirRes.bin"
+
+;Now include our program's equates and zero page variables:
+
+	.require 	"SamVlirEquates.oph"	;get sample VLIR equates
+	.require	"SamVlirZPVars.oph"	;get sample VLIR zero page variables
+
+
+;The resident portion of our program starts here. The first thing we do is
+;clear the screen and initialize our menus and icons. Then we RTS to GEOS
+;mainloop. When an event happens, such as the user selects a menu item or
+;one of our icons, GEOS will call one of our handler routines.
+
+	.text	main			;program code section starts here
+	.org 	$0400			;dengland I think we need to include this directly
+
+ResStart:
+	`LoadB	dispBufferOn, ST_WR_FORE | ST_WR_BACK
+					;allow writes to foreground and background
+
+	`LoadW	r0, ClearScreen		;point to graphics string to clear screen
+	jsr	GraphicsString
+
+
+	jsr	InitSwap		;set up table to facilitate module swapping
+					;later on
+
+	jsr	InitDA			;set up GEOS menu to facilitate running of
+					;desk accessories later on
+
+	`LoadW	r0, MenuTable		;point to menu definition table
+	lda	#0			;position mouse on first menu item
+	jsr	DoMenu			;have GEOS draw the menus on the screen
+
+	`LoadW	r0, IconTable		;point to icon definition table
+	jsr	DoIcons			;have GEOS draw the icons on the screen
+	rts
+
+;Here are some data tables for the init code shown above:
+
+ClearScreen:				;graphics string table to clear screen
+	.byte	NEWPATTERN,2		;set new pattern value
+	.byte	MOVEPENTO		;move pen to:
+	.word	0			;top left corner of screen
+	.byte	0
+	.byte	RECTANGLETO		;draw filled rectangle to bottom right corner
+	.word	319
+	.byte	199
+	.byte	NULL			;end of application
+
+MenuTable:
+	.byte	MM_TOP			;top of menu
+	.byte	MM_BOTTOM		;bottom of menu
+	.word	MM_LEFT			;left side 
+	.word	MM_RIGHT		;right side
+	.byte	MM_COUNT | HORIZONTAL
+					;number of menu items, type of menu
+
+	.word	GeosText		;pointer to text for menu item
+	.byte	VERTICAL		;type of menu
+	.word	GeosSubMenu		;pointer to menu structure
+
+	.word	FileText		;pointer to text for menu item
+	.byte	VERTICAL		;type of menu
+	.word	FileSubMenu		;pointer to menu structure
+
+	.word	EditText		;pointer to text for menu item
+	.byte	VERTICAL		;type of menu
+	.word	EditSubMenu		;pointer to menu structure
+
+;Note: the GEOS sub-menu as it appears below is constructed assuming 
+;only 1 item- the "SampleVlir info" item. When the application is started,
+;a routine called "InitDA" will update this structure according to the
+;number of desk accessories found on the application disk.
+
+GeosSubMenu:				;menu definition table for GEOS vertical menu
+	.byte	SM_TOP			;top scanline #
+	.byte	SM_TOP + 1 + [1 * 14]	;bottom scanline #
+	.word	GM_LEFT			;left x position
+	.word	GM_LEFT + GM_WIDTH	;right x position
+	.byte	VERTICAL | GM_COUNT	;number of menu items, type of menu
+
+	.word	AboutText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	R_DoAbout		;pointer to handler routine
+					;(R_ means routine is resident)
+
+	.word	DA0Text			;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	R_RunDA			;pointer to handler routine
+
+	.word	DA1Text
+	.byte	MENU_ACTION
+	.word	R_RunDA
+
+	.word	DA2Text
+	.byte	MENU_ACTION
+	.word	R_RunDA
+
+	.word	DA3Text
+	.byte	MENU_ACTION
+	.word	R_RunDA
+
+	.word	DA4Text
+	.byte	MENU_ACTION
+	.word	R_RunDA
+
+	.word	DA5Text
+	.byte	MENU_ACTION
+	.word	R_RunDA
+
+	.word	DA6Text
+	.byte	MENU_ACTION
+	.word	R_RunDA
+
+	.word	DA7Text
+	.byte	MENU_ACTION
+	.word	R_RunDA
+
+FileSubMenu:				;menu definition table for FILE vertical menu
+	.byte	SM_TOP			;top scanline #
+	.byte	SM_TOP+1+[FM_COUNT*14] 	;bottom scanline #
+	.word	FM_LEFT			;left x position
+	.word	FM_LEFT + FM_WIDTH	;right x position
+	.byte	VERTICAL | FM_COUNT	;number of menu items, type of menu
+
+	.word	CloseText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	R_DoClose		;pointer to handler routine
+					;(R_ means routine is resident)
+
+	.word	QuitText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	R_DoQuit		;pointer to handler routine
+
+EditSubMenu:				;menu definition table for FILE vertical menu
+	.byte	SM_TOP			;top scanline #
+	.byte	SM_TOP+1+[EM_COUNT*14]	;bottom scanline #
+	.word	EM_LEFT			;left x position
+	.word	EM_LEFT + EM_WIDTH	;right x position
+	.byte	VERTICAL | EM_COUNT	;number of menu items, type of menu
+
+	.word	CutText			;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	R_DoCut			;pointer to handler routine
+					;(R_ means routine is resident)
+
+	.word	CopyText
+	.byte	MENU_ACTION
+	.word	R_DoCopy
+
+	.word	PasteText
+	.byte	MENU_ACTION
+	.word	R_DoPaste
+
+;Text strings for above menu definitions
+
+GeosText:
+	.byte	"geos",0
+FileText:
+	.byte	"file",0
+EditText:
+	.byte	"edit",0
+AboutText:
+	.byte	"SampleVlir info",0
+
+;The following text strings are updated by the InitDA routine.
+;They will contain filenames of all the desk accessories found on the
+;application disk.
+
+;	DA0Text .byte	"desk accessory 0",0		;dengland  I've moved these into
+;	DA1Text .byte	"desk accessory 1",0		;the global section because they
+;	DA2Text .byte	"desk accessory 2",0		;are used by the other modules
+;	DA3Text .byte	"desk accessory 3",0		;Hopefully, the code won't go south
+;	DA4Text .byte	"desk accessory 4",0
+;	DA5Text .byte	"desk accessory 5",0
+;	DA6Text .byte	"desk accessory 6",0
+;	DA7Text .byte	"desk accessory 7",0
+
+CloseText:
+	.byte	"close",0
+QuitText:
+	.byte	"quit",0
+CutText:
+	.byte	"cut",0
+CopyText:
+	.byte	"copy",0
+PasteText:
+	.byte	"paste",0
+
+.alias 	ICON_1_WIDTH	$06		;store bitmap size values 
+.alias	ICON_1_HEIGHT	$18		
+
+
+IconTable:				;icon definition table
+	.byte	1			;number of icons
+	.word	0			;x position to place mouse at when done
+	.byte	0			;y position to place mouse at when done
+
+	.word	Icon1Picture		;pointer to compacted bitmap for icon
+	.byte	3			;x position in bytes
+	.byte	60			;y position in scanlines
+	.byte	ICON_1_WIDTH		;width of icon in bytes
+	.byte	ICON_1_HEIGHT		;height of icon in scanlines
+	.word	R_DoIcon1		;pointer to handler routine
+					;(R_ means routine is resident)
+
+Icon1Picture:				
+;	      	$06, $18, $00 
+	.byte 	              $06, $FF, $81, $80, $04  
+	.byte 	$00, $82, $01, $80, $04, $00, $82, $01                   
+	.byte 	$80, $04, $00, $82, $01, $80, $04, $00  
+	.byte 	$82, $01, $80, $04, $00, $BE, $01, $80
+	.byte 	$0E, $00, $00, $00, $01, $80, $04, $00  
+	.byte 	$00, $00, $01, $80, $04, $00, $00, $00
+	.byte 	$01, $80, $04, $38, $63, $60, $01, $80  
+	.byte 	$04, $4C, $91, $90, $01, $80, $04, $41
+	.byte 	$09, $10, $01, $80, $04, $41, $09, $10  
+	.byte 	$01, $80, $04, $41, $09, $10, $01, $80
+	.byte 	$04, $44, $91, $10, $01, $80, $0E, $38  
+	.byte 	$63, $B8, $01, $80, $04, $00, $82, $01
+	.byte 	$80, $04, $00, $82, $01, $80, $04, $00  
+	.byte 	$82, $01, $80, $04, $00, $82, $01, $80
+	.byte 	$04, $00, $82, $01, $80, $04, $00, $82  
+	.byte 	$01, $80, $04, $00, $81, $01, $06, $FF
+	.byte 	$12, $BF 
+
+;*************************************************************************
+;		R_DoAbout, R_RunDA, R_DoClose, R_DoQuit,
+;		R_DoCut, R_DoCopy, R_DoPaste, R_DoIcon1
+;
+;	These routines are all Resident Handler Routines. They are called
+;	by GEOS when an event happens, such as the user selecting a menu
+;	item or clicking on an icon. All of these routines (except C_DoQuit)
+;	load in a swap module before calling their handler routine in that
+;	module. Since R_DoQuit is a small routine, it does not have to swap
+;	in a module; all the necessary code to quit the application is
+;	resident.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	GEOS menu or icon dispatch handlers
+;	Pass:	if from menu: a = sub-menu item number
+;	Returns:	nothing
+;	Alters:	a, x, y, r0-r15 (probably)
+;
+;************************************************************************
+R_DoAbout:
+	jsr	GotoFirstMenu		;roll menu back up
+
+	;code to handle this event goes here
+
+	rts				;all done
+
+R_RunDA:
+	pha				;save sub-menu number
+	jsr	GotoFirstMenu		;roll menu back up
+	jsr	FileIn			;swap File module into swap area
+	pla				;recall sub-menu number
+	jsr	J_RunDA			;call DA handling routine in File module
+					;(J_RunDA is in jump table in the
+					;SamVlirEquates file).
+	rts				;return to GEOS mainloop
+
+R_DoClose:
+	jsr	GotoFirstMenu		;roll menu back up
+	jsr	FileIn			;swap File module into swap area
+	jsr	J_DoClose		;call handling routine in File module
+	rts				;return to GEOS mainloop
+
+R_DoQuit:
+	jsr	GotoFirstMenu		;roll menu back up
+	jmp	EnterDeskTop		;return to deskTop!
+
+R_DoCut:
+	jsr	GotoFirstMenu		;roll menu back up
+	jsr	EditIn			;swap Edit module into swap area
+	jsr	J_DoCut			;call handling routine in Edit module
+	rts				;return to GEOS mainloop
+
+R_DoCopy:
+	jsr	GotoFirstMenu
+	jsr	EditIn
+	jsr	J_DoCopy
+	rts
+
+R_DoPaste:
+	jsr	GotoFirstMenu
+	jsr	EditIn
+	jsr	J_DoPaste
+	rts
+
+R_DoIcon1:
+	jsr	EditIn			;swap Edit module into swap area
+	jsr	J_DoIcon1		;call handling routine in Edit module
+	rts				;return to GEOS mainloop
+
+;This routine swaps the file module in.
+
+FileIn:
+	lda	#MOD_FILE		;get number of file module
+	jsr	SwapMod			;call swap routine to bring module in
+	rts
+
+;This routine swaps the edit module in.
+
+EditIn:
+	lda	#MOD_EDIT		;get number of edit module
+	jsr	SwapMod			;call swap routine to bring module in
+	rts
+
+;*************************************************************************
+;		InitSwap
+;
+;	This routine sets up a table which contains the track and sector
+;	numbers for each of the program modules which can be loaded.
+;	This table will be used by the SwapMod routine later on.
+;
+;	Author:	Tony / Eric, August 1987
+;	Caller:	ResStart
+;	Pass:	application disk opened
+;	Returns:	appName = filename of application file
+;		swapTable = table of (T,S) pairs, one for
+;		each module. See NUM_MODS equate.
+;		curModule = $ff (no module currently loaded)
+;	Alters:	a, x, y, r0-r2, r4-r7, r10
+;
+;************************************************************************
+InitSwap:
+	;This first step is in case someone has changed the application's
+	;filename: we search the disk using the application permanent name,
+	;and find out what the filename is.
+
+	`LoadW	r6, appName		;point to buffer to store filename in
+	`LoadB	r7L, APPLICATION 	;look for files of type application
+	`LoadB	r7H, 1			;only want 1 file, the application
+	`LoadW	r10, NameString		;point to application's permanent name 
+	jsr	FindFTypes		;GEOS system call to do directory search
+					;for above. Assume no errors...
+					
+	;appName has filename now. Open the application file as a VLIR file.
+
+	`LoadW	r0, appName		;set up ptr to filename as is on disk
+	jsr	OpenRecordFile		;initialize for reading records as VLIR.
+
+	;fileHeader now contains index table for application file.
+	;Copy track/sector pointers into table that will be used by SwapMod
+	;routine to load modules. (i_MoveData not used to simplify stepping.)
+
+	`LoadW	r0, fileHeader+4	;source in fileHeader
+	`LoadW	r1, swapTable		;destination, to hold index table data 
+	`LoadW	r2, NUM_MODS*2		;number of bytes to copy
+	jsr	MoveData		;use GEOS MoveData routine
+
+	jsr	CloseRecordFile		;and close application file
+					;(assume no errors)
+	;curModule is a variable which contains the number of the currently loaded
+	;module. Initialize it to a value which won't match any number.
+	`LoadB	curModule, $ff
+	rts				;all done
+
+NameString:				;permanent name string for our application
+	.byte	"SampleVlir  V1.0",0
+
+;*************************************************************************
+;		InitDA
+;
+;	This routine builds out the GEOS menu item table so that it contains
+;	the names of the desk accessories on the disk. Also see the RunDA
+;	routine.
+;
+;	Author:	Tony / Eric, August 1987
+;	Caller:	ResStart
+;	Pass:	application disk opened
+;	Returns:	GEOS menu structure updated
+;	Alters:	a, x, y, r0-r2, r4, r6, r7, r10
+;
+;************************************************************************
+InitDA:
+	`LoadB	DA0Text, 0		;dengland Clearing the memory, just
+	`LoadB	DA1Text, 0		;to be sure.
+	`LoadB	DA2Text, 0
+	`LoadB	DA3Text, 0
+	`LoadB	DA4Text, 0
+	`LoadB	DA5Text, 0
+	`LoadB	DA6Text, 0
+	`LoadB	DA7Text, 0
+
+	;first have GEOS search disk for files which have a GEOS type
+	;of DESK_ACC. Copy their names into the menu structure.
+
+	`LoadW	r6, DA0Text		;put filenames in array for menu text
+	`LoadB	r7L, DESK_ACC		;look for files of type desk accessory
+	`LoadB	r7H, NUM_DA		;maximum of 7 desk accessories may be listed
+	`LoadW	r10, 0			;don't care about permanent names
+	jsr	FindFTypes		;call GEOS routine
+
+	;now calculate the number of desk accessories found and update
+	;some more crucial bytes in the menu structure.
+
+	lda	#NUM_DA			;r7H returned with (7 - num files found)
+	`sub	r7H			;subtract from 7 to get number of files
+	beq	+			;exit if there are no files...
+
+	clc
+	adc	#1 			;add one for "SampleVlir info" menu item
+	pha				;save the number of menu items
+	ora	#VERTICAL		;and "or" with VERTICAL flag
+	sta	GeosSubMenu+6 		;to set new number of sub-menu items.
+	pla				;recover number of menu items
+
+	;now calculate height of menu in scanlines: is 14 per menu item.
+
+	sta	r0L			;save in temp register
+	asl				;multiply by 16
+	asl	
+	asl	
+	asl	
+	`sub	r0L			;and subtract itself twice to get
+	`sub	r0L			;final result of numItems * 14
+	clc
+	adc	#[SM_TOP+1]		;add to top scanline number of sub-menu
+	sta	GeosSubMenu+1		;set new bottom for sub-menu
+
+*	rts		;all done
+
+;*************************************************************************
+;		SwapMod
+;
+;	This routine swaps a module in. Note how it uses "ReadFile" instead
+;	of "ReadRecord" so that it does not affect any opened VLIR file.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	top-level resident routines
+;	Pass:	a = number of module to swap in
+;		curModule = number of module which is currently in
+;	Returns:	curModule = number of module which is swapped in
+;	Alters:	a, x, y, r1-r13
+;
+;************************************************************************
+SwapMod:
+	cmp	curModule		;see if module is already swapped in
+	beq	+			;skip to end if so...
+	sta	curModule		;save new module number
+
+	;now use module number to get track and sector information on
+	;record which contains module.
+
+	sec
+	sbc	#1			;subtract 1 and multiply by 2
+	asl				;to get index to (T,S) word.
+	tay				;because of word length entries in swapTable
+
+	lda	swapTable+0,y		;get track number
+	sta	r1L
+	lda	swapTable+1,y		;get sector number
+	sta	r1H
+
+	;load module into swap area
+
+	`LoadW	r7, SWAP_BASE		;base address for load
+	`LoadW	r2, SWAP_SIZE		;maximum size of module
+	jsr	ReadFile		;read the record in
+					;(You may want to check for errors here.)
+
+*					;all done
+	rts
+
+;*************************************************************************
+;		Global Variables
+;
+;	These variables are resident and thus always accessable by any module
+;	of our application.
+;
+;************************************************************************
+
+;dengland  	This whole section is moved into SamVlirEquates because
+;		its used by the modules
+
+;	.data global			;variable section starts here
+;	.org $5000			;(Give this an address of $5000)
+
+;	.space	swapTable [NUM_MODS * 2] ;dengland Ophis won't do it
+;	.space	swapTable 4  		;holds (T,S) pairs, one for each module
+					;of our application
+
+;	.space	appName 17		;holds application filename. Really only
+					;necessary during initialization.
+;	.space 	DA0Text: 17		;dengand:  Moved here because they are
+;	.space 	DA1Text: 17		;used by the modules
+;	.space 	DA2Text: 17
+;	.space 	DA3Text: 17
+;	.space 	DA4Text: 17
+;	.space 	DA5Text: 17
+;	.space 	DA6Text: 17
+;	.space 	DA7Text: 17
+
+

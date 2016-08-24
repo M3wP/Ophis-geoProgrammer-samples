@@ -1,0 +1,64 @@
+;************************************************************************
+;
+;	SamDAHdr
+;
+;	This file contains the header block definition for the GeoProgrammer
+;	package sample desk accessory.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+	.require	"geosSym.oph"		;get GEOS definitions
+	
+	.outfile	"SamDA.hdr"		;dengland:  Output header file for
+						;build tool.
+
+	.word	0				;first two bytes are always zero
+	.byte	3				;width in bytes
+	.byte	21				;and height in scanlines of:
+
+	.byte	               $BF, $FF, $FF, $FF, $80
+	.byte	$00, $01, $80, $00, $01, $80, $00, $01
+	.byte	$80, $00, $01, $9F, $81, $81, $8C, $C1
+	.byte	$81, $8C, $63, $C1, $8C, $63, $C1, $8C
+	.byte	$66, $61, $8C, $67, $E1, $8C, $CC, $31
+	.byte	$9F, $8E, $79, $80, $00, $01, $80, $00
+	.byte	$01, $80, $00, $01, $80, $00, $01, $80
+	.byte	$00, $01, $80, $00, $01, $80, $00, $01
+	.byte	$FF, $FF, $FF
+
+	.byte	$80 | USR			;Commodore file type, with bit 7 set.
+	.byte	DESK_ACC			;Geos file type
+	.byte	SEQUENTIAL			;Geos file structure type
+						;dengland We have to put these here manually
+						;the end address is gleaned from the assembly
+						;map after its complete.
+	.word	$1000				;start address of program (where to load to)
+	.word	$1CE0				;end address (VERY IMPORTANT)
+	.word	$1000				;init address of program (where to JMP to)
+	.byte	"SampleDA    V1.0",0,0,0,$00	;permanent filename: 12 characters,
+						;followed by 4 character version number,
+						;followed by 3 zeroes,
+						;followed by 40/80 column flag.
+	.byte	"Eric E. Del Sesto  ",0		;twenty character author name
+
+						;dengland:  I didn't like space and 
+						;	.advance won't work
+						;dengland:  Lets make this proper :P
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00	; parent 20 bytes
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00
+	.byte	$00, $00, $00, $00
+	
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00	; app data 23 bytes
+	.byte	$00, $00, $00, $00, $00, $00, $00, $00
+	.byte	$00, $00, $00, $00, $00, $00, $00
+
+	.byte	"This is the GeoProgrammer sample"	; 32
+	.byte	" GEOS desk accessory.",0,0,0		; 56
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 64
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 72
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 80
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 88
+	.byte	0, 0, 0, 0, 0, 0, 0, 0			; 96

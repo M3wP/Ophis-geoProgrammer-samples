@@ -1,0 +1,532 @@
+;************************************************************************
+;
+;	SamDA
+;
+;	This is the main file for the GeoProgrammer package sample
+;	desk accessory. It contains all of the code and data required
+;	for assembly.
+;
+;Note: A desk accessory:
+;	-- should not alter the background screen area.
+;	-- must honor the flag values passed from the application in r10L:
+;	If B7=1, the DA must save the application's foreground screen
+;	to a ram or disk buffer and restore it when returning to the app.
+;	If B6=1, the DA must save and restore the application's color values
+;	similarly.
+;	-- must only use a specific, contiguous area of application memory
+;	space (somewhere in $0400 to $5fff). The area used is specified
+;	in the header block for the accessory. (See SamDAHdr.)
+;	-- must fill its' screen section with the appropriate screen color.
+;	It is a good idea to grab the color value from the card in the
+;	top-right corner of the screen, so that your accessory's colors
+;	will honor the Preference Manager settings.
+;	-- must not use the top 16 scanlines of the screen.
+;	-- must set its' own sprite picture data, colors, positions,
+;	and X/Y doubling information.
+;
+;Since our accessory has menus, we always save and later restore the
+;application's background screen space, so that we can use both the FG
+;and BG screens, as a normal application would. Instead of saving the
+;BG screen (FG screen and colors also if R10L dictates) to a temporary
+;disk file, we save them in a big buffer which lies after the code in this
+;file.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+	.require	"geosSym.oph"		;get GEOS definitions
+	.require	"geosMac.oph"		;get GEOS macro definitions
+
+	.outfile	"SamDA.bin"
+
+
+;Here are some equates to define our desk accessories' screen position.
+;Everything is on card boundaries to simplify saving screen data and color
+;information.
+
+.alias	DA_TOP		8		;# of cards down from top of screen
+					;(MUST BE AT LEAST 2 FOR ALL DAs)
+.alias	DA_LEFT		10		;# of cards in from left side of screen
+.alias 	DA_HEIGHT	8		;# of cards high
+.alias 	DA_WIDTH	20		;# of cards wide
+					;(MAX IS 32 or must rewrite SaveScreen and
+					;RestoreScreen routines.)
+.alias	NUM_CARDS	DA_HEIGHT * DA_WIDTH
+					;number of cards on screen covered by DA
+.alias	FG_BUF_SIZE	NUM_CARDS * 8	;size of buffer to save application's screen
+					;to. Equal to number of cards * 8 bytes/card.
+
+;Our program starts here. The first thing we do is save the application's
+;screen data and color information if necessary. Then we draw a box in the
+;middle of the screen, initialize our menus and icons, and RTS to GEOS mainloop.
+;When an event happens, such as the user selects a menu item or one of our
+;icons, GEOS will call one of our handler routines.
+
+	.text	 			;program code section starts here
+	.org 	$1000			;dengland I think we need to include this directly
+	
+DAStart:
+					;this label is needed when the linker
+					;resolves the SamDAHdr.rel file, so that the
+					;header block can have information about
+					;where to load the desk accessory.
+					;dengland We'll need to specify directly.
+
+	`MoveB	r10L, recoverFlag	;save flag passed from application
+
+	jsr	SaveScreen		;save application BG (and FG if necessary)
+	jsr	SaveColors		;save application colors if necessary
+					;and wipe with our color value
+
+	`LoadB	dispBufferOn, [ST_WR_FORE | ST_WR_BACK]
+					;allow writes to FG and BG
+
+	`LoadW	r0, DrawBox		;point to graphics string to draw box
+	jsr	GraphicsString
+
+	`LoadW	r0, MenuTable		;point to menu definition table
+	lda	#0			;place cursor on first menu item when done
+	jsr	DoMenu			;have GEOS draw the menus on the screen
+
+	`LoadW	r0, IconTable		;point to icon definition table
+	jsr	DoIcons			;have GEOS draw the icons on the screen
+	rts
+
+;Here are some data tables for the init code shown above:
+
+DrawBox:				;graphics string table to clear screen
+	.byte	NEWPATTERN,0		;set new pattern value (white)
+	.byte	MOVEPENTO		;move pen to:
+	.word	DA_LEFT*8		;top left corner of DB (in pixels)
+	.byte	DA_TOP*8
+	.byte	RECTANGLETO		;draw filled rectangle to bottom right corner
+	.word	[DA_LEFT + DA_WIDTH] * 8 - 1
+	.byte	[DA_TOP + DA_HEIGHT] * 8 - 1
+					;bottom right corner of DB (in pixels)
+	.byte	NEWPATTERN, 1		;set new pattern value (black)
+	.byte	FRAME_RECTO		;draw frame to...
+	.word	DA_LEFT * 8		;top left corner of DB (in pixels)
+	.byte	DA_TOP * 8
+	.byte	NULL
+
+MenuTable:				;menu definition table for main horizontal menu
+	.byte	DA_TOP * 8		;top y coordinate
+	.byte	[DA_TOP * 8] + 14	;bottom y coordinate
+	.word	DA_LEFT * 8		;left x coordinate
+	.word	[DA_LEFT * 8] + 44	;right x coordinates
+	.byte	2 | HORIZONTAL		;number of menu items, type of menu
+
+	.word	FileText		;pointer to text for menu item
+	.byte	VERTICAL		;type of menu
+	.word	FileSubMenu		;pointer to menu structure
+
+	.word	EditText		;pointer to text for menu item
+	.byte	VERTICAL		;type of menu
+	.word	EditSubMenu		;pointer to menu structure
+
+FileSubMenu:				;menu definition table for File vertical menu
+	.byte	[DA_TOP * 8] + 15	;top y coordinate
+	.byte	[DA_TOP * 8] + 43	;bottom y coordinate
+	.word	DA_LEFT * 8		;left x coordinate
+	.word	[DA_LEFT * 8] + 39	;right x coordinates
+	.byte	2 | VERTICAL		;number of menu items, type of menu
+
+	.word	CloseText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	DoClose			;pointer to handler routine
+
+	.word	QuitText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	DoQuit			;pointer to handler routine
+
+EditSubMenu:				;menu definition table for FILE vertical menu
+	.byte	[DA_TOP * 8] + 15	;top y coordinate
+	.byte	[DA_TOP * 8] + 57	;bottom y coordinate
+	.word	[DA_LEFT * 8] + 20	;left x coordinate
+	.word	[DA_LEFT * 8] + 56	;right x coordinates
+	.byte	3 | VERTICAL		;number of menu items, type of menu
+
+	.word	CutText			;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	DoCut			;pointer to handler routine
+
+	.word	CopyText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	DoCopy			;pointer to handler routine
+
+	.word	PasteText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	DoPaste			;pointer to handler routine
+
+;text strings for above menus
+
+FileText:	
+	.byte	"file",0
+CloseText:
+	.byte	"close",0
+QuitText:
+	.byte	"quit",0
+EditText:
+	.byte	"edit",0
+CutText:
+	.byte	"cut",0
+CopyText:
+	.byte	"copy",0
+PasteText:
+	.byte	"paste",0
+
+;icon definition table
+
+
+.alias 	ICON_1_WIDTH	$06		;store bitmap size values for use in above
+.alias 	ICON_1_HEIGHT	$18		;table on pass 2. (picW and picH are set by
+					;the assembler.)
+
+IconTable:
+	.byte	1			;number of icons
+	.word	DA_LEFT * 8		;x position to place mouse at when done
+	.byte	DA_TOP * 8		;y position to place mouse at when done
+
+	.word	Icon1Picture		;pointer to compacted bitmap for icon
+	.byte	DA_LEFT+3		;x position in bytes
+	.byte	[DA_TOP * 8] + 24	;y position in scanlines
+	.byte	ICON_1_WIDTH		;width of icon in bytes
+	.byte	ICON_1_HEIGHT		;height of icon in scanlines
+	.word	DoIcon1			;pointer to handler routine
+
+Icon1Picture:				;assembler will place compacted bitmap data
+					;here for this picture:
+;		$06, $18, $00, 
+	.byte	               $06, $FF, $81, $80, $04  
+	.byte	$00, $82, $01, $80, $04, $00, $82, $01
+	.byte	$80, $04, $00, $82, $01, $80, $04, $00
+	.byte	$82, $01, $80, $04, $00, $BE, $01, $80
+	.byte	$0E, $00, $00, $00, $01, $80, $04, $00
+	.byte	$00, $00, $01, $80, $04, $00, $00, $00
+	.byte	$01, $80, $04, $38, $63, $60, $01, $80
+	.byte	$04, $4C, $91, $90, $01, $80, $04, $41
+	.byte	$09, $10, $01, $80, $04, $41, $09, $10
+	.byte	$01, $80, $04, $41, $09, $10, $01, $80
+	.byte	$04, $44, $91, $10, $01, $80, $0E, $38
+	.byte	$63, $B8, $01, $80, $04, $00, $82, $01
+	.byte	$80, $04, $00, $82, $01, $80, $04, $00
+	.byte	$82, $01, $80, $04, $00, $82, $01, $80
+	.byte	$04, $00, $82, $01, $80, $04, $00, $82
+	.byte	$01, $80, $04, $00, $81, $01, $06, $FF
+	.byte	$12, $BF
+
+
+
+;Event handler routines: are called by GEOS when an event happens,
+;such as user selecting a menu item or clicking on an icon.
+
+DoClose:
+DoCut:
+DoCopy:
+DoPaste:
+	jsr	GotoFirstMenu		;roll menu back up
+
+	;code to handle this event goes here
+
+	rts				;all done
+
+DoQuit:
+	jsr	GotoFirstMenu		;roll menu back up
+	jsr	RestoreColors		;restore application's color values
+	jsr	RestoreScreen		;restore application's BG (and FG maybe) data
+	jmp	RstrAppl		;return to application!
+
+DoIcon1:
+	;code to handle this event goes here
+	rts
+
+;*************************************************************************
+;		SaveScreen
+;
+;	This routine saves a portion of the application's FG and BG screens.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	DAStart
+;	Pass:	recoverFlag = r10L value passed from application
+;	Returns:	screenBuf = application's FG and BG screen data
+;	Alters:	a, x, y, r0, r1, r5, r6
+;
+;************************************************************************
+SaveScreen:
+	.scope
+	
+	`LoadW	r0, screenBuf		;use r0 as pointer to buffer
+	ldx	#DA_TOP * 8		;use x as scanline #, start at top
+
+ 	;for each card-row covered by DA. (Could make this a subroutine
+	;to save code space.)
+_10:	jsr	GetScanLine		;get two pointers to screen data (r5 and r6)
+
+	;push two pointers to first byte in left-most card covered by DA
+	`AddVW_b [DA_LEFT * 8], r5
+	`AddVW_b [DA_LEFT * 8], r6
+
+	;start at right side of DA and read bytes to the left
+	ldy	#[DA_WIDTH * 8] - 1	;point to last byte in right-most card on line
+
+ 	;for each byte in cards on this card-row
+_20:	lda	(r6), y			;get byte from BG screen area
+	jsr	SaveByte		;and save it to buffer
+
+	bit	recoverFlag		;do we need to save FG also?
+	bpl	_30			;skip if not...
+
+	lda	(r5), y			;get byte from FG screen area
+	jsr	SaveByte		;and save it to buffer
+
+ 	;on to next byte to the left
+_30:	dey
+	cpy	#$ff			;off left edge of DA space yet?
+	bne	_20			;loop for next byte if not...
+
+	;on to next card row
+	txa				;add 8 (# lines per card) to scanline index
+	clc
+	adc	#8
+	tax
+	cpx	#[DA_TOP + DA_HEIGHT] * 8
+					;off bottom edge yet?
+	bcc	_10			;loop for next line if not...
+	rts
+	
+	.scend
+
+;*************************************************************************
+;		RestoreScreen
+;
+;	This routine recovers a portion of the application's FG and BG screens.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	DAStart
+;	Pass:	recoverFlag = r10L value passed from application
+;		screenBuf = application's FG and BG screen data
+;	Returns:	FG and BG screens restored
+;	Alters:	a, x, y, r0, r1, r5, r6
+;
+;************************************************************************
+RestoreScreen:
+	.scope
+
+	`LoadW	r0, screenBuf		;use r0 as pointer to buffer
+	ldx	#DA_TOP * 8		;use x as scanline #, start at top
+
+	;for each card-row covered by DA
+_10:	jsr	GetScanLine		;get two pointers to screen data (r5 and r6)
+
+	;push two pointers to first byte in left-most card covered by DA
+	`AddVW_b [DA_LEFT * 8] ,r5
+	`AddVW_b [DA_LEFT * 8], r6
+
+	;start at right side of DA and write bytes to the left
+	ldy	#[DA_WIDTH * 8] - 1 	;point to last byte in right-most card on line
+
+ 	;for each byte in cards on this card-row
+_20:	jsr	GetByte			;get byte from buffer
+	sta	(r6), y			;and save to BG screen
+
+	bit	recoverFlag		;do we need to recover FG also?
+	bpl	_30			;skip if not...
+
+	jsr	GetByte			;get byte from buffer
+	sta	(r5),y			;and save to FG screen
+
+ 	;on to next byte to the left
+_30:	dey
+	cpy	#$ff			;off left edge of DA space yet?
+	bne	_20			;loop for next byte if not...
+
+	;on to next card row
+	txa				;add 8 (# lines per card) to scanline index
+	clc
+	adc	#8
+	tax
+	cpx	#[DA_TOP + DA_HEIGHT] * 8
+					;off bottom edge yet?
+	bcc	_10			;loop for next line if not...
+	rts
+
+	.scend
+
+;*************************************************************************
+;		SaveColors
+;
+;	This routine saves a portion of the application's color table.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	DAStart
+;	Pass:	recoverFlag = r10L value passed from application
+;	Returns:	colorBuf = application's color table data
+;	Alters:	a, x, y, r0, r1, r2
+;
+;************************************************************************
+SaveColors:
+	.scope
+	
+	`LoadW	r0, colorBuf		;use r0 as pointer to buffer
+	`LoadW	r2, COLOR_MATRIX + [DA_TOP * 40] + DA_LEFT
+					;use r1 as pointer into color matrix
+					;storage area (start at top left of
+					;where DA lies).
+	ldx	#DA_HEIGHT		;use x as card-line counter
+
+ 	;for each card-line covered by DA
+	;start at right side of DA and read bytes to the left
+
+_10:	ldy	#DA_WIDTH-1		;point to right-most card on line
+
+ 	;for each card on line: first save card color if necessary
+
+_20:	bit	recoverFlag		;do we need to save application's colors?
+	bvc	_30			;skip if not...
+
+	lda	(r2), y			;get byte from COLOR_MATRIX area
+	jsr	SaveByte		;and save it to buffer
+
+ 	;and now stuff card with value we want
+
+_30:	lda	COLOR_MATRIX + 40 - 1
+					;get card color value from top-right corner
+					;of application's screen
+	sta	(r2), y			;and use as color for this card
+
+	;on to next byte to the left
+
+	dey				;off left edge of DA space yet?
+	bpl	_20			;loop for next byte if not...
+
+	;on to next line
+
+	`AddVW_b 40, r2			;push pointer to next line in COLOR_MATRIX
+	dex				;one less line to go
+	bne	_10			;loop if more lines to go...
+	rts
+	
+	.scend
+	
+;*************************************************************************
+;		RestoreColors
+;
+;	This routine recovers a portion of the application's color table.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	DAStart
+;	Pass:	recoverFlag = r10L value passed from application
+;		colorBuf = application's color table data
+;	Returns:	COLOR_MATRIX updated
+;	Alters:	a, x, y, r0, r1, r2
+;
+;************************************************************************
+RestoreColors:
+	.scope
+
+	bit	recoverFlag		;do we need to recover application's colors?
+	bvc	_30			;skip if not...
+
+	`LoadW	r0, colorBuf		;use r0 as pointer to buffer
+
+	`LoadW	r2, COLOR_MATRIX + [DA_TOP * 40] + DA_LEFT
+					;use r1 as pointer into color matrix
+					;storage area (start at top left of
+					;where DA lies).
+
+	ldx	#DA_HEIGHT		;use x as card-line counter
+
+ 	;for each card-line covered by DA
+	;start at right side of DA and stuff bytes to the left
+
+_10:	ldy	#DA_WIDTH-1		;point to right-most card on line
+
+ 	;for each card on line: restore card color value
+_20:	jsr	GetByte			;get byte from buffer
+	sta	(r2),y			;save byte to COLOR_MATRIX area
+
+	;on to next byte to the left
+
+	dey				;off left edge of DA space yet?
+	bpl	_20			;loop for next byte if not...
+
+	;on to next line
+
+	`AddVW_b 40, r2			;push pointer to next line in COLOR_MATRIX
+	dex	 			;one less line to go
+	bne	_10			;loop if more lines to go...
+
+ 	;all done
+_30:	rts
+
+	.scend
+	
+;*************************************************************************
+;		SaveByte, GetByte
+;
+;	These two routines are used to save/recall a byte to/from the
+;	screen and color buffers.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	SaveScreen, RestoreScreen, SaveColors, RestoreColors
+;	Pass:	r0 = pointer into screenBuf or colorBuf
+;		a = value to save (SaveByte)
+;	Returns:	r0 = pointer to next byte in buffer
+;		a = value from buffer (GetByte)
+;		x,y = same as before
+;	Alters:	a, r1L
+;
+;************************************************************************
+SaveByte:
+	sty	r1L		;save y register temporarily
+	ldy	#0
+	sta	(r0),y		;save byte into buffer
+	`bra	Finish		;skip ahead to finish up...
+
+GetByte:
+	sty	r1L		;save y register temporarily
+	ldy	#0
+	lda	(r0),y		;get byte from buffer
+
+Finish:
+	.scope
+
+	inc	r0L		;increment pointer (these three lines
+	bne	_90		;constitute the IncW macro.)
+	inc	r0H
+_90:	ldy	r1L		;restore y register
+	rts
+
+	.scend
+
+	
+	
+
+;*************************************************************************
+;	Global Variables
+;
+;These variables are placed IMMEDIATELY following our DA code so that
+;our entire DA (code+variables) is one contiguous block of memory.
+;************************************************************************
+
+				;data storage area starts here
+
+	.space	recoverFlag 1	;holds flags passed from application in r10L
+
+;	 space screenBuf FG_BUF_SIZE * 2	;dengland Ophis won't do it
+	.space screenBuf 2560
+				;holds application's FG and BG screen data
+				;while DA is running
+
+;	 space colorBuf NUM_CARDS		;dengland Ophis won't do it
+	.space colorBuf 160	
+				;holds application's card color info
+				;while DA is running
+
+
+DAEnd:				
+				;DA ends here. Linker needs this value
+				;for SamDAHdr file.
+

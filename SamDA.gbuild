@@ -1,0 +1,6 @@
+[build]
+Disk="GEOSSampleApps.d64"
+Header="SamDA.hdr"
+
+[Sequential]
+Data="SamDA.bin"

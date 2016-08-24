@@ -1,0 +1,94 @@
+;************************************************************************
+;
+;	SamVlirEquates
+;
+;	This file contains global equate definitions for the GeoProgrammer
+;	package sample VLIR application.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+;Miscellaneous equates:
+
+.alias		NUM_MODS	2		;this application has 2 swap modules:
+.alias		MOD_FILE	1		;record number for file module
+.alias		MOD_EDIT	2		;record number for edit module
+
+.alias		SWAP_BASE	$1000		;module code loads from $1000
+.alias		SWAP_SIZE	$0f00		;to $1eff
+.alias		SWAP_VARS	$1f00		;modules use $1f00-$1fff as local var. area
+
+.alias		NUM_DA		7		;Geos menu can list names of 7 desk accessories
+
+;Equates for jump tables in modules:
+
+;File module:
+
+.alias		J_RunDA		SWAP_BASE + [0 * 3] ;first entry in module's jump table
+.alias		J_DoClose	SWAP_BASE + [1 * 3] ;2nd
+
+;Edit module:
+
+.alias		J_DoCut		SWAP_BASE + [0 * 3]
+.alias		J_DoCopy	SWAP_BASE + [1 * 3]
+.alias		J_DoPaste	SWAP_BASE + [2 * 3]
+.alias		J_DoIcon1	SWAP_BASE + [3 * 3]
+
+;Equates for main menu:
+
+.alias		MM_COUNT	3		;number of main menu items
+.alias		MM_TOP		0		;top scanline of menu
+.alias		MM_BOTTOM	14		;bottom scanline of menu
+.alias		MM_LEFT		0		;left pixel position of menu
+.alias		MM_RIGHT	72		;right pixel position of menu
+
+.alias		SM_TOP		MM_BOTTOM+1	;top of all sub-menus
+
+;Equates for GEOS menu:
+
+.alias		GM_COUNT	1		;number of items (assuming no desk accessories-
+						;InitDA routine will adjust table.)
+.alias		GM_LEFT		0		;left x position
+.alias		GM_WIDTH	79		;width in pixels
+
+;Equates for FILE menu:
+
+.alias		FM_COUNT	2		;number of items
+.alias		FM_LEFT		29		;left x position
+.alias		FM_WIDTH	40		;width in pixels
+
+;Equates for EDIT menu:
+
+.alias		EM_COUNT	3		;number of items
+.alias		EM_LEFT		49		;left x position
+.alias		EM_WIDTH	40		;width in pixels
+
+
+;*************************************************************************
+;		Global Variables
+;
+;	These variables are resident and thus always accessable by any module
+;	of our application.
+;
+;************************************************************************
+
+	.data global			;variable section starts here
+	.org $5000			;(Give this an address of $5000)
+
+;	.space	swapTable [NUM_MODS * 2] ;dengland: Ophis won't do it
+	.space	swapTable 4  		;holds (T,S) pairs, one for each module
+					;of our application
+
+	.space	appName	17		;holds application filename. Really only
+					;necessary during initialization.
+					
+	.space 	DA0Text 17		;dengand:  Moved here because they are
+	.space 	DA1Text 17		;used by the modules
+	.space 	DA2Text 17
+	.space 	DA3Text 17
+	.space 	DA4Text 17
+	.space 	DA5Text 17
+	.space 	DA6Text 17
+	.space 	DA7Text 17

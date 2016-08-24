@@ -1,0 +1,356 @@
+;************************************************************************
+;
+;	geosMac
+;
+;	This is the macro definition file for the GEOS operating system.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+.macro LoadB	;		dest, value
+		lda 	#_2
+		sta 	_1
+.macend
+
+.macro LoadW 	;		dest, value
+		lda 	#>_2
+		sta 	_1+1
+		lda 	#<_2
+		sta 	_1+0
+.macend
+
+.macro MoveB 	;		source, dest
+		lda 	_1
+		sta 	_2
+.macend
+
+.macro MoveW 	;		source, dest
+		lda 	_1+1
+		sta 	_2+1
+		lda 	_1+0
+		sta 	_2+0
+.macend
+
+.macro add 	;		source
+		clc
+		adc 	_1
+.macend
+
+.macro AddB 	;		source, dest
+		clc
+		lda 	_1
+		adc 	_2
+		sta 	_2
+.macend
+
+.macro AddW 	;		source, dest
+		lda 	_1
+		clc
+		adc 	_2+0
+		sta 	_2+0
+		lda 	_1+1
+		adc 	_2+1
+		sta 	_2+1
+.macend
+
+.macro AddVB 	;		value, dest
+		lda 	_2
+		clc
+		adc 	#_1
+		sta 	_2
+.macend
+
+;dengland			Ophis doesn't support .if
+;.macro AddVW 	;		value, dest
+;		clc
+;		lda 	#<(_1)
+;		adc 	_2+0
+;		sta 	_2+0
+;.if 	(value >= 0) && (value <= 255)
+;		bcc 	noInc
+;		inc 	_2+1
+;noInc:
+;.else
+;		lda 	#>(_1)
+;		adc 	_2+1
+;		sta 	_2+1
+;.endif
+;.macend
+
+;dengland			For when value (value >= 0) && (value <= 255)
+.macro AddVW_b	;		value, dest
+		clc
+		lda 	#<_1
+		adc 	_2+0
+		sta 	_2+0
+		bcc 	__noInc
+		inc 	_2+1
+__noInc:
+.macend
+
+;dengland			For when value > 255
+.macro AddVW_w	;		value, dest
+		clc
+		lda 	#<_1
+		adc 	_2+0
+		sta 	_2+0
+		lda 	#>_1
+		lda 	#>_1
+		adc 	_2+1
+		sta 	_2+1
+.macend
+
+
+.macro sub 	;		source
+		sec
+		sbc 	_1
+.macend
+
+.macro 	SubB 	;		source, dest
+		sec
+		lda 	_2
+		sbc 	_1
+		sta 	_2
+.macend
+
+.macro SubW 	;		source, dest
+		lda 	_2+0
+		sec
+		sbc 	_1+0
+		sta 	_2+0
+		lda 	_2+1
+		sbc 	_1+1
+		sta 	_2+1
+.macend
+
+.macro CmpB 	;		source, dest
+		lda 	_1
+		cmp 	_2
+.macend
+
+.macro CmpBI 	;		source, immed
+		lda 	_1
+		cmp #_2
+.macend
+
+.macro CmpW 	;		source, dest
+		lda 	_1+1
+		cmp 	_2+1
+		bne 	__done
+		lda 	_1+0
+		cmp 	_2+0
+__done:
+.macend
+
+.macro CmpWI 	;		source, immed
+		lda 	_1+1
+		cmp #>_2
+		bne __done
+		lda 	_1+0
+		cmp #<_2
+__done:
+.macend
+
+.macro PushB 	;		source
+		lda _1
+		pha
+.macend
+
+.macro PushW 	;		source
+		lda 	_1+1
+		pha
+		lda 	_1+0
+		pha
+.macend
+
+.macro PopB 	;		dest
+		pla
+		sta 	_1
+.macend
+
+.macro PopW 	;		dest
+		pla
+		sta 	_1+0
+		pla
+		sta 	_1+1
+.macend
+
+.macro bra 	;		addr
+		clv
+		bvc 	_1
+.macend
+
+
+;dengland			Ophis doesn't support <<
+;.macro smb 	;		bitNumber, dest
+;		pha
+;		lda 	#(1 << _1)
+;		ora 	_2
+;		sta 	_2
+;		pla
+;.macend
+
+.macro smb_m	;		bitMask, dest
+		pha
+		lda 	#_1
+		ora 	_2
+		sta 	_2
+		pla
+.macend
+
+
+;dengland			Ophis doesn't support <<
+;.macro smbf 	;		bitNumber, dest
+;		lda 	#(1 << _1)
+;		ora 	_2
+;		sta 	_2
+;.macend
+
+.macro smbf_m	;		bitMask, dest
+		lda 	#_1
+		ora 	_2
+		sta 	_2
+.macend
+
+
+;dengland			Ophis doesn't support bitwise not
+;.macro rmb 	;		bitNumber, dest
+;		pha
+;		lda 	#<!(1 << _1)
+;		and 	_2
+;		sta 	_2
+;		pla
+;.macend
+
+;dengland			Ophis doesn't support bitwise not
+;.macro rmbf 	;		bitNumber, dest
+;		lda 	#<!(1 << _1)
+;		and 	_2
+;		sta 	_2
+;.macend
+
+;dengland			Ophis doesn't support <<
+;.macro bbs 	;		bitNumber, source, addr
+;		php
+;		pha
+;		lda source
+;		and 	#(1 << _1)
+;		beq 	nobranch
+;		pla
+;		plp
+;		`bra 	addr
+;nobranch:
+;		pla
+;		plp
+;.macend
+
+.macro bbs_m 	;		bitMask, source, addr
+		php
+		pha
+		lda 	source
+		and 	#_1
+		beq 	__nobranch
+		pla
+		plp
+		`bra 	addr
+__nobranch:
+		pla
+		plp
+.macend
+
+
+;dengland			Ophis doesn't support .if nor <<
+;.macro bbsf 	;		bitNumber, source, addr
+;.if (bitNumber = 7)
+;		bit 	_2
+;		bmi 	_3
+;.elif (bitNumber = 6)
+;		bit 	_2
+;		bvs 	_3
+;.else
+;		lda 	_2
+;		and 	#(1 << _1)
+;		bne 	_3
+;.endif
+;.macend
+
+.macro bbsf_7 	;		source, addr
+		bit 	_1
+		bmi 	_2
+.macend
+
+.macro bbsf_6 	;	 	source, addr
+		bit 	_1
+		bvs 	_2
+.macend
+
+.macro bbsf_m 	;		bitMask, source, addr
+		lda 	_2
+		and 	#_1
+		bne 	_3
+.macend
+
+
+;dengland			Ophis doesn't support <<
+;.macro bbr 	;		bitNumber, source, addr
+;		php
+;		pha
+;		lda 	_2
+;		and 	#(1 << _1)
+;		bne 	nobranch
+;		pla
+;		plp
+;		`bra 	addr
+;nobranch:
+;		pla
+;		plp
+;.macend
+
+.macro bbr_m 	;	bitMask, source, addr
+		php
+		pha
+		lda 	_2
+		and 	#_1
+		bne 	__nobranch
+		pla
+		plp
+		`bra 	addr
+__nobranch:
+		pla
+		plp
+.macend
+
+
+;dengland			Ophis doesn't support .if nor <<
+;.macro bbrf 	;		bitNumber, source, addr
+;.if (bitNumber = 7)
+;		bit 	source
+;		bpl 	addr
+;.elif (bitNumber = 6)
+;		bit 	source
+;		bvc 	addr
+;.else
+;		lda 	source
+;		and 	#(1 << bitNumber)
+;		beq 	addr
+;.endif
+;.macend
+
+.macro bbrf_7 	;		source, addr
+		bit 	_1
+		bpl 	_2
+.macend
+
+.macro bbrf_6 	;		source, addr
+		bit 	_1
+		bvc 	_2
+.macend
+
+.macro bbrf_m 	;		bitNumber, source, addr
+		lda 	_2
+		and 	#_1
+		beq 	_3
+.macend
+

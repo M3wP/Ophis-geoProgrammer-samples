@@ -1,0 +1,166 @@
+;************************************************************************
+;
+;		SamSeq
+;
+;	This is the main file for the GeoProgrammer package sample
+;	application. It contains all of the code and data required
+;	for assembly.
+;
+;Copyright (c) 1987 Berkeley Softworks. For the sole use of registered
+;GeoProgrammer owners.
+;************************************************************************
+
+	.require	"geosSym.oph"		;get GEOS definitions
+	.require	"geosMac.oph"		;get GEOS macro definitions
+
+	.outfile	"SamSeq.bin"
+
+
+;Our program starts here. The first thing we do is clear the screen and
+;initialize our menus and icons. Then we RTS to GEOS mainloop.
+;When an event happens, such as the user selects a menu item or one of our
+;icons, GEOS will call one of our handler routines.
+
+	.text	main			;program code section starts here
+	.org 	$0400			;dengland: I think we need to include this directly
+
+ProgStart:
+	`LoadB	dispBufferOn, ST_WR_FORE | ST_WR_BACK
+					;allow writes to foreground and background
+
+	`LoadW	r0, ClearScreen		;point to graphics string to clear screen
+	jsr	GraphicsString
+
+	`LoadW	r0, MenuTable		;point to menu definition table
+	lda	#0			;place cursor on first menu item when done
+	jsr	DoMenu			;have GEOS draw the menus on the screen
+
+	`LoadW	r0, IconTable		;point to icon definition table
+	jsr	DoIcons			;have GEOS draw the icons on the screen
+	rts
+
+
+
+;Here are some data tables for the init code shown above:
+
+ClearScreen:				;graphics string table to clear screen
+	.byte	NEWPATTERN, 2		;set new pattern value
+	.byte	MOVEPENTO		;move pen to:
+	.word	0			;top left corner of screen
+	.byte	0
+	.byte	RECTANGLETO		;draw filled rectangle to bottom right corner
+	.word	319
+	.byte	199
+	.byte	NULL			;end of GraphicsString
+
+MenuTable:				;menu definition table for main horizontal menu
+	.byte	0, 14			;top and bottom y coordinates
+	.word	0, 49			;left and right x coordinates
+	.byte	2 | HORIZONTAL		;number of menu items, type of menu
+
+	.word	GeosText		;pointer to text for menu item
+	.byte	VERTICAL		;type of menu
+	.word	GeosSubMenu		;pointer to menu structure
+
+	.word	FileText		;pointer to text for menu item
+	.byte	VERTICAL		;type of menu
+	.word	FileSubMenu		;pointer to menu structure
+
+GeosSubMenu:				;menu definition table for GEOS vertical menu
+	.byte	15, 30			;top and bottom y coordinates
+	.word	0, 79			;left and right x coordinates
+	.byte	1 | VERTICAL		;number of menu items, type of menu
+
+	.word	AboutText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	DoAbout			;pointer to handler routine
+
+FileSubMenu:				;menu definition table for FILE vertical menu
+	.byte	15, 44			;top and bottom y coordinates
+	.word	29, 64			;left and right x coordinates
+	.byte	2 | VERTICAL		;number of menu items, type of menu
+
+	.word	CloseText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	DoClose			;pointer to handler routine
+
+	.word	QuitText		;pointer to text for menu item
+	.byte	MENU_ACTION		;type of action
+	.word	DoQuit			;pointer to handler routine
+
+
+;text strings for above menus
+
+GeosText:	
+	.byte	"geos",0
+FileText:
+	.byte	"file",0
+AboutText:
+	.byte	"SampleSeq info",0
+CloseText:
+	.byte	"close",0
+QuitText:
+	.byte	"quit",0
+
+;icon definition table
+
+.alias	ICON_1_WIDTH	$06		;store bitmap size values for use in table
+.alias	ICON_1_HEIGHT	$18		;dengland:  We've had to set these directly 
+					;
+IconTable:
+	.byte	1			;number of icons
+	.word	0			;x position to place mouse at when done
+	.byte	0			;y position to place mouse at when done
+
+	.word	Icon1Picture		;pointer to compacted bitmap for icon
+	.byte	3			;x position in bytes
+	.byte	60			;y position in scanlines
+	.byte	ICON_1_WIDTH		;width of icon in bytes
+	.byte	ICON_1_HEIGHT		;height of icon in scanlines
+	.word	DoIcon1			;pointer to handler routine
+
+Icon1Picture:				;assembler will place compacted bitmap data
+					;here for this picture:
+
+		;$06, $18, $00, 
+	.byte	               $06, $FF, $81, $80, $04
+	.byte	$00, $82, $01, $80, $04, $00, $82, $01
+	.byte	$80, $04, $00, $82, $01, $80, $04, $00
+	.byte	$82, $01, $80, $04, $00, $BE, $01, $80
+	.byte	$0E, $00, $00, $00, $01, $80, $04, $00
+	.byte	$00, $00, $01, $80, $04, $00, $00, $00
+	.byte	$01, $80, $04, $38, $63, $60, $01, $80
+	.byte	$04, $4C, $91, $90, $01, $80, $04, $41
+	.byte	$09, $10, $01, $80, $04, $41, $09, $10
+	.byte	$01, $80, $04, $41, $09, $10, $01, $80
+	.byte	$04, $44, $91, $10, $01, $80, $0E, $38
+	.byte	$63, $B8, $01, $80, $04, $00, $82, $01
+	.byte	$80, $04, $00, $82, $01, $80, $04, $00
+	.byte	$82, $01, $80, $04, $00, $82, $01, $80
+	.byte	$04, $00, $82, $01, $80, $04, $00, $82
+	.byte	$01, $80, $04, $00, $81, $01, $06, $FF
+	.byte	$12, $BF
+
+
+;Event handler routines: are called by GEOS when an event happens,
+;such as user selecting a menu item or clicking on an icon.
+
+DoAbout:
+	jsr	GotoFirstMenu		;roll menu back up
+					;code to handle this event goes here
+	rts				;all done
+
+DoClose:
+	jsr	GotoFirstMenu		;roll menu back up
+					;code to handle this event goes here
+	rts				;all done
+
+DoQuit:
+	jsr	GotoFirstMenu		;roll menu back up
+	jmp	EnterDeskTop		;return to deskTop!
+
+DoIcon1:
+					;code to handle this event goes here
+	rts
+
+

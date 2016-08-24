@@ -1,0 +1,222 @@
+;************************************************************************
+;
+;	SamVlirFile
+;
+;	This file contains the File Module code for the GeoProgrammer
+;	package sample VLIR application. It contains all of the code
+;	and data required for assembling the File Module portion of the program.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+;Now include GEOS definitions and our definitions:
+;(We could let the linker handle this, but doing it here speeds up the
+;link process. We MUST include the zero page variables here so that
+;addressing modes can be resolved.)
+
+	.require	"geosSym.oph"		;get GEOS definitions
+	.require	"geosMac.oph"		;get GEOS macro definitions
+
+	.outfile	"SamVlirFile.bin"
+
+	.require 	"SamVlirEquates.oph"	;get sample VLIR equates
+	.require	"SamVlirZPVars.oph"	;get sample VLIR zero page variables
+
+;The File module starts here with a jump table so the resident portion
+;of our code can JSR to routines in this module without knowing their
+;exact address. See the jump table equates in the SamVlirEquates file.
+
+	.text				;module code section starts here
+	.org 	SWAP_BASE		;give this an address SWAP_BASE, 
+					;which is $1000.
+
+FileMod:
+	jmp	RunDA			;first jump table entry
+	jmp	DoClose			;2nd
+
+
+;*************************************************************************
+;		RunDeskAccessory
+;
+;	This routine loads and runs a desk accessory. Note that the call
+;	to GetFile to load the desk accessory causes the memory under the
+;	desk accessory to be swapped out and control transferred to the desk
+;	accessory. When the desk accessory is "turned off" by executing a
+;	call to RstrAppl, control returns to the application (in this case
+;	the deskTop) immediately following the call to GetFile.
+;
+;	Author:	Tony Requist / Eric E. Del Sesto, August 1987
+;	Caller:	GEOS mainloop when DA name in GEOS menu is selected.
+;	Pass:	a = sub-menu item number
+;	Returns:	nothing
+;	Alters:	a, x, y, r0-r15
+;
+;************************************************************************
+RunDA:
+	;first use the sub-menu item number to point to the filename
+	;for the desk accessory
+
+	sta	r6L			;Store a copy of the selected menu item's #
+	asl	 			;The menu item number times 17, added to the 
+	asl	 			;base of the strings for geos submenu items 
+	asl	 			;(each 17 bytes apart) gives the address of 
+	asl	 			;the filename for this DA. 
+
+	`add	r6L			;now have menu item number times 17
+	clc
+					;dengland I'm quite concerned about the offset of 17
+					;here.  I'm not sure that this is going to work or not
+					;given that I've put the data somewhere else, now.
+					;Hopefully, the code above is 1 based...
+					
+	adc	#<[DA0Text - 17]	;add low byte of base address of table
+	sta	r6L			;save low byte into r6
+
+	lda	#0			;high byte of offset is 0
+	adc	#>[DA0Text - 17]	;add to high byte of base address of table
+					;(considering carry from low byte)
+	sta	r6H			;save high byte
+
+	`PushW	r6			;save pointer to desk accessory filename
+
+	;place code that will run before a desk accessory here
+
+	;close any open VLIR files
+
+	;copy sprite picture data (for 7 sprites) to a buffer
+
+	`LoadW	r0, spr1pic		;from sprite picture data area: $8a40
+	`LoadW	r1, spriteBuf		;to a (7*64) byte buffer.
+	`LoadW	r2, [7 * 64]
+	jsr	MoveData		;move data
+
+	;for applications which read other drives, should use OpenDisk
+	;to open application disk here.
+
+	`PopW	r6			;recall pointer to desk accessory filename
+
+	;save sprite's double-Y flag in case is changed by desk accessory
+
+	ldx	CPU_DATA		;save memory map status for now
+	`LoadB	CPU_DATA, IO_IN		;swap I/O space in
+	`PushB	moby2			;save VIC's sprite double-y byte
+	`LoadB	moby2, 0		;and set for "no doubling"
+	stx	CPU_DATA		;restore previous memory map
+
+	`LoadB	r0L, 0			;use standard loading option (always 0 for DAs)
+					;pass flag to GetFile routine
+
+	lda	#%00000000		;B7 = 1 to make DA save foreground screen to
+					;buffer or disk and recover when done.
+					;B6 = 1 to make DA save color information
+					;to buffer or disk and recover when done.
+	sta	r10L			;pass flag to GetFile routine
+
+	jsr	GetFile			;load and run desk accessory.
+
+;at this point, GEOS saves:
+;	pointers to menu and icon structures
+;	all sprite x, y, color, and doubleX info
+;
+;desk accessory code must:
+;	set its own sprite pictures, (x,y) positions, colors,
+;		and doubleXY information.
+;	set the desired screen colors (40-column mode only)
+;	not use $0200-$03ff for variables, because some
+;		new applications (geoFile, geoDebug) do
+;
+;when desk accessory has finished, GEOS restores:
+;	pointers to menu and icon structures
+;	all sprite x, y, color, and doubleX info
+
+	stx	r6L			;save error status for now
+
+	;restore sprite's double-y flag in case was changed by desk accessory
+
+	ldx	CPU_DATA		;save memory map status for now
+	`LoadB	CPU_DATA, IO_IN		;swap I/O space in
+	`PopB	moby2			;restore VIC's sprite double-y byte
+	stx	CPU_DATA		;restore previous memory map
+
+	;restore sprite picture data
+
+	`LoadW	r0, spriteBuf		;source
+	`LoadW	r1, spr1pic		;destination
+	`LoadW	r2, [7*64]
+	jsr	MoveData
+
+	;since we did not have DA restore our colors,
+	;must now fill color table with default screen color
+
+	`MoveB	screencolors,r2L
+	`LoadW	r1, COLOR_MATRIX
+	`LoadW	r0, [25*40]
+	jsr	FillRam
+
+	;since we did not have DA save our foreground screen,
+	;must recover from background here.
+
+	`LoadB	r2L, MM_BOTTOM+1
+					;top y coordinate (do not restore menu area-
+					;DAs cannot affect it.)
+	`LoadB	r2H, 199		;bottom y coordinates
+	`LoadW	r3, 0			;left x coordinate
+	`LoadW	r4, 319			;right x coordinates
+	jsr	RecoverRectangle
+
+;On error handling: any error that happened must be related to loading
+;the desk accessory. Might want to distinguish between INSUFF_SPACE
+;and other disk errors.
+
+	ldx	r6L			;get error number
+	beq	+			;skip if no error...
+
+	;handle errors here
+
+*	;code to run after desk accessory completion goes here
+
+	;re-open VLIR files here
+
+	rts				;return to resident R_RunDA routine, which
+					;will return to GEOS mainloop, letting
+					;application continue...
+
+;*************************************************************************
+;		DoClose
+;
+;	This is a dummy event routine. You can file in your own code here.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	GEOS mainloop when the "close" menu item is selected
+;	Pass:	nothing
+;	Returns:	nothing
+;	Alters:	a, x, y, r0-r15
+;
+;************************************************************************
+DoClose:
+	jsr	GotoFirstMenu
+	rts
+
+;*************************************************************************
+;		File Module local variables
+;
+;	This area contains definitions for variables which are local to
+;	the File Module. No other module (including resident) can access
+;	these variables. These variables are trashed whenever the File
+;	Module swaps in or out, and so cannot be used for anything more
+;	than temporary storage for routines in this module.
+;
+;************************************************************************
+
+	.data local	
+	.org SWAP_VARS			;variable section starts here
+					;give this an address of SWAP_VARS, 
+					;which is $1f00.
+
+;	.space	spriteBuf 7 * 64	;dengland Ophis won't do it
+	.space	spriteBuf 448		;holds 7 sprite images (#1-#8) while
+					;desk accessory is running.
+
+

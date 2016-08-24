@@ -1,0 +1,26 @@
+;************************************************************************
+;
+;	SamVlirZPVars
+;
+;	This file contains zero-page ($0000-$00ff) global variable definitions
+;	for the GeoProgrammer package sample VLIR application. It is
+;	included into each module (including resident) so that when each
+;	module assembles, it knows the absolute zero-page address of these
+;	variables.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+	.require 	"geosSym.oph"
+
+	.data zeropage
+	.org  a2		;we are using the a2-a9 area ($0070-$007f)
+				;(see geosMemoryMap)
+
+				;holds module number of currently loaded
+	.space	curModule 1	;module. See InitSwap and SwapMod.
+
+;WARNING: do not place more than 16 bytes worth of variables here!
+;We are restricted to the a2 - a9 area...

@@ -1,0 +1,124 @@
+;************************************************************************
+;
+;	SamVlirEdit
+;
+;	This file contains the File Module code for the GeoProgrammer
+;	package sample VLIR application. It contains all of the code
+;	and data required for assembling the File Module portion of the program.
+;
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
+;************************************************************************
+
+;Now include GEOS definitions and our definitions:
+;(We could let the linker handle this, but doing it here speeds up the
+;link process. We MUST include the zero page variables here so that
+;addressing modes can be resolved.)
+
+	.require	"geosSym.oph"		;get GEOS definitions
+	.require	"geosMac.oph"		;get GEOS macro definitions
+
+	.outfile	"SamVlirEdit.bin"
+
+	.require 	"SamVlirEquates.oph"	;get sample VLIR equates
+	.require	"SamVlirZPVars.oph"	;get sample VLIR zero page variables
+
+;The Edit Module starts here with a jump table so the resident portion
+;of our code can JSR to routines in this module without knowing their
+;exact address. See the jump table equates in the SamVlirEquates file.
+
+	.text				;module code section starts here
+	.org 	SWAP_BASE		;give this an address SWAP_BASE, 
+					;which is $1000.
+
+EditMod:
+	jmp	DoCut			;first jump table entry
+	jmp	DoCopy			;2nd
+	jmp	DoPaste			;3rd
+	jmp	DoIcon1			;4th
+
+;*************************************************************************
+;		DoCut
+;
+;	This is a dummy event handler routine. Customize this for your
+;	own application.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	R_DoCut when the "cut" menu item is selected
+;	Pass:	nothing
+;	Returns:	nothing
+;	Alters:
+;
+;************************************************************************
+DoCut:
+	;add your own code here
+	rts
+
+;*************************************************************************
+;		DoCopy
+;
+;	This is a dummy event handler routine. Customize this for your
+;	own application.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	R_DoCopy when the "copy" menu item is selected
+;	Pass:	nothing
+;	Returns:	nothing
+;	Alters:
+;
+;************************************************************************
+DoCopy:
+	;add your own code here
+	rts
+
+;*************************************************************************
+;		DoPaste
+;
+;	This is a dummy event handler routine. Customize this for your
+;	own application.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	R_DoPaste when the "paste" menu item is selected
+;	Pass:	nothing
+;	Returns:	nothing
+;	Alters:
+;
+;************************************************************************
+DoPaste:
+	;add your own code here
+	rts
+
+;*************************************************************************
+;		DoIcon1
+;
+;	This is a dummy event handler routine. Customize this for your
+;	own application.
+;
+;	Author:	Eric E. Del Sesto, August 1987
+;	Caller:	R_DoIcon1 when the "ICON" is pressed.
+;	Pass:	nothing
+;	Returns:	nothing
+;	Alters:
+;
+;************************************************************************
+DoIcon1:
+	;add your own code here
+	rts
+
+;*************************************************************************
+;		Edit Module local variables
+;
+;	This area contains definitions for variables which are local to
+;	the Edit Module. No other module (including resident) can access
+;	these variables. These variables are trashed whenever the Edit
+;	Module swaps in or out, and so cannot be used for anything more
+;	than temporary storage for routines in this module.
+;
+;************************************************************************
+	.data local	
+	.org SWAP_VARS			;variable section starts here
+					;give this an address of SWAP_VARS, 
+					;which is $1f00.
+
+	.space	editVars 1		;unused variable: for example only
