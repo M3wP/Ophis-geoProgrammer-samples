@@ -6,8 +6,9 @@
 ;	application. It contains all of the code and data required
 ;	for assembly.
 ;
-;Copyright (c) 1987 Berkeley Softworks. For the sole use of registered
-;GeoProgrammer owners.
+;Copyright (c) 1987 Berkeley Softworks. Released to the Public Domain.
+;
+;Translation to the Ophis assembler by Daniel England, 2016.
 ;************************************************************************
 
 	.require	"geosSym.oph"		;get GEOS definitions
